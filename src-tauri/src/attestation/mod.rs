@@ -9,9 +9,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
-use sha2::Digest;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use thiserror::Error;
 use tracing::{debug, info, warn};
 

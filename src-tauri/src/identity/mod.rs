@@ -9,7 +9,7 @@
 
 use anyhow::Result;
 use chrono::{Duration, Utc};
-use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use rcgen::{
     Certificate, CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose,
     IsCa, KeyPair, KeyUsagePurpose, SanType, PKCS_ECDSA_P256_SHA256,
@@ -393,13 +393,13 @@ impl IdentityProvider {
     pub fn verify_jwt_svid(&self, token: &str) -> Result<SvidClaims, IdentityError> {
         let key_pem = self.ca_key_pair.serialize_pem();
         let decoding_key = DecodingKey::from_ec_pem(key_pem.as_bytes())
-            .map_err(|e| IdentityError::JwtVerificationFailed(e.to_string()))?;
+            .map_err(|e: jsonwebtoken::errors::Error| IdentityError::JwtVerificationFailed(e.to_string()))?;
         
         let mut validation = Validation::new(Algorithm::ES256);
         validation.validate_exp = true;
         
         let token_data = decode::<SvidClaims>(token, &decoding_key, &validation)
-            .map_err(|e| IdentityError::JwtVerificationFailed(e.to_string()))?;
+            .map_err(|e: jsonwebtoken::errors::Error| IdentityError::JwtVerificationFailed(e.to_string()))?;
         
         // Verify trust domain (A1.5)
         let spiffe_id = SpiffeId::from_uri(&token_data.claims.sub)?;

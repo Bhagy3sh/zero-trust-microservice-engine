@@ -8,7 +8,7 @@
 
 use anyhow::{Context, Result};
 use parking_lot::Mutex;
-use rusqlite::{params, Connection, OpenFlags};
+use rusqlite::{Connection, OpenFlags};
 use std::path::Path;
 use tracing::{debug, info};
 
