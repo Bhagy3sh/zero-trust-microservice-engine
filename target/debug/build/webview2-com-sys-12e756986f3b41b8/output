@@ -1,0 +1,2 @@
+cargo:rustc-link-search=native=D:\INS Miniproject\zerotrust-mesh\target\debug\build\webview2-com-sys-12e756986f3b41b8\out\x64
+cargo:rustc-link-lib=advapi32

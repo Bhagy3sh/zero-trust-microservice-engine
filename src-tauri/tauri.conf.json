@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ZeroTrust Mesh",
+  "version": "0.1.0",
+  "identifier": "com.zerotrust.mesh",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../build"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "ZeroTrust Mesh",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1200,
+        "minHeight": 700,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "trayIcon": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb", "rpm", "appimage"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Security",
+    "shortDescription": "Zero-Trust Network Micro-Segmentation Engine",
+    "longDescription": "A desktop application that implements zero-trust network micro-segmentation with identity-based access policies, encrypted service meshes, and real-time attack visualization.",
+    "linux": {
+      "deb": {
+        "depends": ["libbpf-dev", "wireguard-tools"]
+      }
+    }
+  },
+  "plugins": {
+    "shell": {
+      "open": true,
+      "scope": []
+    },
+    "notification": {
+      "all": true
+    }
+  }
+}
