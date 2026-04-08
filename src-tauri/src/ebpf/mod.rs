@@ -9,16 +9,16 @@
 //! Actual eBPF programs are in the ebpf/ directory and require
 //! libbpf-rs/aya-rs and root privileges to load.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::IpAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use thiserror::Error;
-use tracing::{debug, error, info, warn};
+use tracing::{info, warn};
 
 use crate::storage::Database;
 
@@ -157,7 +157,7 @@ pub struct AttackEvent {
 }
 
 /// Packet counters per service (D1.6)
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Default)]
 pub struct PacketCounters {
     pub packets_in: AtomicU64,
     pub packets_out: AtomicU64,
@@ -197,7 +197,7 @@ impl PacketCounters {
 }
 
 /// Snapshot of packet counters (serializable)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PacketCountersSnapshot {
     pub packets_in: u64,
     pub packets_out: u64,
@@ -345,7 +345,7 @@ impl AttackDetector {
     pub fn process_packet(
         &self,
         five_tuple: &FiveTuple,
-        packet_size: u64,
+        _packet_size: u64,
         tcp_flags: Option<u8>,
     ) -> Option<AttackEvent> {
         // Check whitelist first (D3.4)

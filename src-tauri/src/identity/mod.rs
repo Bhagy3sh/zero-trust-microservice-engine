@@ -7,23 +7,21 @@
 //!
 //! SPIFFE ID format: spiffe://<trust_domain>/<workload>
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::{Duration, Utc};
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use rcgen::{
     Certificate, CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose,
-    IsCa, KeyPair, KeyUsagePurpose, SanType,
+    IsCa, KeyPair, KeyUsagePurpose, SanType, PKCS_ECDSA_P256_SHA256,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use thiserror::Error;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
-use crate::crypto::{sha256_hash, Aes256GcmCrypto, AesKey};
-use crate::storage::Database;
+use crate::crypto::{Aes256GcmCrypto, AesKey};
 
 /// Identity-related errors
 #[derive(Error, Debug)]
@@ -223,9 +221,9 @@ impl IdentityProvider {
         params.not_before = rcgen::date_time_ymd(2024, 1, 1);
         params.not_after = rcgen::date_time_ymd(2034, 1, 1);
         
-        // Generate key pair
-        let key_pair = KeyPair::generate()?;
-        params.key_pair = Some(key_pair.clone());
+        // Generate key pair with ECDSA P-256
+        let key_pair = KeyPair::generate(&PKCS_ECDSA_P256_SHA256)?;
+        let key_pair_serialized = key_pair.serialize_pem();
         
         let cert = Certificate::from_params(params)?;
         
@@ -234,7 +232,7 @@ impl IdentityProvider {
             std::fs::create_dir_all(parent)?;
         }
         
-        std::fs::write(key_path, key_pair.serialize_pem())?;
+        std::fs::write(key_path, &key_pair_serialized)?;
         std::fs::write(cert_path, cert.serialize_pem()?)?;
         
         info!("CA certificate generated and saved");
@@ -242,7 +240,7 @@ impl IdentityProvider {
     }
     
     /// Load existing CA
-    fn load_ca(key_path: &Path, cert_path: &Path) -> Result<(KeyPair, Certificate)> {
+    fn load_ca(key_path: &Path, _cert_path: &Path) -> Result<(KeyPair, Certificate)> {
         info!("Loading existing CA from {:?}", key_path);
         
         let key_pem = std::fs::read_to_string(key_path)?;
@@ -252,7 +250,6 @@ impl IdentityProvider {
         // This is a simplified version - in production, parse the existing cert
         let mut params = CertificateParams::default();
         params.is_ca = IsCa::Ca(rcgen::BasicConstraints::Constrained(2));
-        params.key_pair = Some(key_pair.clone());
         
         let cert = Certificate::from_params(params)?;
         
@@ -336,8 +333,7 @@ impl IdentityProvider {
         let expires = now + Duration::hours(24);
         
         // Generate key pair for the service
-        let key_pair = KeyPair::generate()?;
-        params.key_pair = Some(key_pair.clone());
+        let key_pair = KeyPair::generate(&PKCS_ECDSA_P256_SHA256)?;
         
         // Create certificate signed by CA
         let cert = Certificate::from_params(params)?;

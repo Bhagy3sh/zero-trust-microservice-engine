@@ -5,15 +5,16 @@
 //! - B2: Policy Evaluation (<10ms per request)
 //! - B3: Policy Management
 
-use anyhow::{Context, Result};
-use chrono::{DateTime, Datelike, NaiveTime, Timelike, Utc, Weekday};
+use anyhow::Result;
+use chrono::{DateTime, Datelike, Timelike, Utc};
 use dashmap::DashMap;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use thiserror::Error;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -644,7 +645,7 @@ impl PolicyEngine {
             }
             Operator::Matches => {
                 expected.as_str().and_then(|pattern| {
-                    regex::Regex::new(pattern).ok().map(|re| re.is_match(field_value))
+                    Regex::new(pattern).ok().map(|re: Regex| re.is_match(field_value))
                 }).unwrap_or(false)
             }
             _ => false,
@@ -850,7 +851,7 @@ pub mod templates {
                 operator: Operator::Equals,
                 value: serde_json::Value::String(ip.to_string()),
             })
-            .with_description(format!("Block traffic from IP: {}", ip))
+            .with_description(&format!("Block traffic from IP: {}", ip))
     }
 }
 

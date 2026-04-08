@@ -6,15 +6,15 @@
 //! - C3: Network Isolation
 
 use anyhow::{Context, Result};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use chrono::{DateTime, Utc};
 use ipnetwork::IpNetwork;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::process::Command;
 use std::sync::Arc;
 use thiserror::Error;
-use tracing::{debug, error, info, warn};
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::crypto::{generate_secure_token, Aes256GcmCrypto, AesKey};
@@ -103,7 +103,7 @@ impl WgKeyPair {
     pub fn generate() -> Result<Self> {
         // Generate 32 random bytes for private key
         let private_bytes = generate_secure_token(32);
-        let private_key = base64::encode(&private_bytes);
+        let private_key = BASE64.encode(&private_bytes);
         
         // In real implementation, use curve25519 to derive public key
         // For now, we'll generate a placeholder (in production, use wireguard-uapi)
@@ -121,7 +121,7 @@ impl WgKeyPair {
         let mut hasher = Sha256::new();
         hasher.update(private_bytes);
         hasher.update(b"wireguard-pubkey-derivation");
-        base64::encode(hasher.finalize())
+        BASE64.encode(hasher.finalize())
     }
 }
 

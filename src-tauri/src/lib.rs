@@ -17,7 +17,7 @@ use anyhow::Result;
 use once_cell::sync::OnceCell;
 use parking_lot::RwLock;
 use std::sync::Arc;
-use tracing::{info, error};
+use tracing::info;
 
 /// Global application state
 pub static APP_STATE: OnceCell<Arc<AppState>> = OnceCell::new();

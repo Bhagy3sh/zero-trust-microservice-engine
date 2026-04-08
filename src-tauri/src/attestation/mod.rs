@@ -5,16 +5,15 @@
 //! - E2: TPM Integration
 //! - E3: Trust Score Calculation
 
-use anyhow::{Context, Result};
-use chrono::{DateTime, Duration, Utc};
+use anyhow::Result;
+use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use sha2::Digest;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use thiserror::Error;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use crate::config::AttestationConfig;
 use crate::crypto::sha256_file;
@@ -50,11 +49,11 @@ pub enum TrustLevel {
 
 impl TrustLevel {
     pub fn from_score(score: f64, config: &AttestationConfig) -> Self {
-        if score >= config.full_access_threshold {
+        if score >= config.full_access_threshold as f64 {
             TrustLevel::FullAccess
-        } else if score >= config.limited_access_threshold {
+        } else if score >= config.limited_access_threshold as f64 {
             TrustLevel::LimitedAccess
-        } else if score >= config.termination_threshold {
+        } else if score >= config.termination_threshold as f64 {
             TrustLevel::Isolated
         } else {
             TrustLevel::Terminated
@@ -407,10 +406,10 @@ impl TrustManager {
         
         // Calculate weighted score (E3.2 - E3.5)
         let score = 
-            components.tpm_score * self.config.tpm_weight +
-            components.process_score * self.config.process_integrity_weight +
-            components.behavioral_score * self.config.behavioral_weight +
-            components.resource_score * self.config.resource_weight;
+            components.tpm_score * self.config.tpm_weight as f64 +
+            components.process_score * self.config.process_integrity_weight as f64 +
+            components.behavioral_score * self.config.behavioral_weight as f64 +
+            components.resource_score * self.config.resource_weight as f64;
         
         // Clamp to 0.0 - 1.0
         let score = score.max(0.0).min(1.0);
@@ -481,7 +480,7 @@ impl TrustManager {
     }
     
     /// Generate human-readable reason for score
-    fn generate_score_reason(&self, components: &TrustScoreComponents, score: f64) -> Option<String> {
+    fn generate_score_reason(&self, components: &TrustScoreComponents, _score: f64) -> Option<String> {
         let mut reasons = Vec::new();
         
         if !self.tpm_available {

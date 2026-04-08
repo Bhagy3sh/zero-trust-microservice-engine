@@ -7,11 +7,9 @@
 //! - SEC6: Audit logs protected from unprivileged deletion
 
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
 use rusqlite::{params, Connection, OpenFlags};
 use std::path::Path;
-use std::sync::Arc;
 use tracing::{debug, info};
 
 /// Database wrapper with connection pooling
