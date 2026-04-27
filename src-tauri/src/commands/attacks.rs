@@ -133,10 +133,11 @@ pub async fn blacklist_ip(
         (chrono::Utc::now() + chrono::Duration::hours(h as i64)).to_rfc3339()
     });
     
+    let now = chrono::Utc::now().to_rfc3339();
     state.db.execute(
         "INSERT OR REPLACE INTO blacklist (ip, reason, auto_generated, expires_at, created_at)
          VALUES (?1, ?2, 0, ?3, ?4)",
-        &[&ip, &reason, expires_at.as_ref().unwrap(), &chrono::Utc::now().to_rfc3339()],
+        &[&ip as &dyn rusqlite::ToSql, &reason, &expires_at, &now],
     ).map_err(|e| e.to_string())?;
     
     info!("Blacklisted IP {}: {}", ip, reason);

@@ -30,43 +30,60 @@ pub async fn get_audit_logs(
     let limit = limit.unwrap_or(100);
     let offset = offset.unwrap_or(0);
     
-    let sql = if let Some(ref et) = event_type {
-        format!(
+    // Use parameterized queries to prevent SQL injection
+    let logs: Vec<AuditLogResponse> = if let Some(ref et) = event_type {
+        let sql = format!(
             "SELECT id, event_type, action, subject, details, source_ip, user, success, created_at
-             FROM audit_logs WHERE event_type = '{}' 
+             FROM audit_logs WHERE event_type = ?1
              ORDER BY created_at DESC LIMIT {} OFFSET {}",
-            et, limit, offset
-        )
+            limit, offset
+        );
+        state.db.query_map(
+            &sql,
+            &[et as &dyn rusqlite::ToSql],
+            |row| {
+                Ok(AuditLogResponse {
+                    id: row.get(0)?,
+                    event_type: row.get(1)?,
+                    action: row.get(2)?,
+                    subject: row.get(3)?,
+                    details: row.get(4)?,
+                    source_ip: row.get(5)?,
+                    user: row.get(6)?,
+                    success: row.get(7)?,
+                    created_at: row.get(8)?,
+                })
+            },
+        ).map_err(|e| e.to_string())?
     } else {
-        format!(
+        let sql = format!(
             "SELECT id, event_type, action, subject, details, source_ip, user, success, created_at
              FROM audit_logs ORDER BY created_at DESC LIMIT {} OFFSET {}",
             limit, offset
-        )
+        );
+        state.db.query_map(
+            &sql,
+            &[],
+            |row| {
+                Ok(AuditLogResponse {
+                    id: row.get(0)?,
+                    event_type: row.get(1)?,
+                    action: row.get(2)?,
+                    subject: row.get(3)?,
+                    details: row.get(4)?,
+                    source_ip: row.get(5)?,
+                    user: row.get(6)?,
+                    success: row.get(7)?,
+                    created_at: row.get(8)?,
+                })
+            },
+        ).map_err(|e| e.to_string())?
     };
-    
-    let logs: Vec<AuditLogResponse> = state.db.query_map(
-        &sql,
-        &[],
-        |row| {
-            Ok(AuditLogResponse {
-                id: row.get(0)?,
-                event_type: row.get(1)?,
-                action: row.get(2)?,
-                subject: row.get(3)?,
-                details: row.get(4)?,
-                source_ip: row.get(5)?,
-                user: row.get(6)?,
-                success: row.get(7)?,
-                created_at: row.get(8)?,
-            })
-        },
-    ).map_err(|e| e.to_string())?;
     
     Ok(logs)
 }
 
-/// Export logs as JSON (G2)
+/// Export logs as JSON file (G2)
 #[command]
 pub async fn export_logs(
     start_date: Option<String>,
@@ -74,45 +91,83 @@ pub async fn export_logs(
 ) -> Result<String, String> {
     let state = get_app_state().ok_or("Application not initialized")?;
     
-    let sql = match (&start_date, &end_date) {
-        (Some(start), Some(end)) => format!(
-            "SELECT id, event_type, action, subject, details, source_ip, user, success, created_at
-             FROM audit_logs WHERE created_at >= '{}' AND created_at <= '{}' ORDER BY created_at",
-            start, end
-        ),
-        (Some(start), None) => format!(
-            "SELECT id, event_type, action, subject, details, source_ip, user, success, created_at
-             FROM audit_logs WHERE created_at >= '{}' ORDER BY created_at",
-            start
-        ),
-        (None, Some(end)) => format!(
-            "SELECT id, event_type, action, subject, details, source_ip, user, success, created_at
-             FROM audit_logs WHERE created_at <= '{}' ORDER BY created_at",
-            end
-        ),
+    let logs: Vec<AuditLogResponse> = match (&start_date, &end_date) {
+        (Some(start), Some(end)) => {
+            let sql = "SELECT id, event_type, action, subject, details, source_ip, user, success, created_at
+                       FROM audit_logs WHERE created_at >= ?1 AND created_at <= ?2 ORDER BY created_at";
+            state.db.query_map(sql, &[start as &dyn rusqlite::ToSql, end], |row| {
+                Ok(AuditLogResponse {
+                    id: row.get(0)?,
+                    event_type: row.get(1)?,
+                    action: row.get(2)?,
+                    subject: row.get(3)?,
+                    details: row.get(4)?,
+                    source_ip: row.get(5)?,
+                    user: row.get(6)?,
+                    success: row.get(7)?,
+                    created_at: row.get(8)?,
+                })
+            }).map_err(|e| e.to_string())?
+        }
+        (Some(start), None) => {
+            let sql = "SELECT id, event_type, action, subject, details, source_ip, user, success, created_at
+                       FROM audit_logs WHERE created_at >= ?1 ORDER BY created_at";
+            state.db.query_map(sql, &[start as &dyn rusqlite::ToSql], |row| {
+                Ok(AuditLogResponse {
+                    id: row.get(0)?,
+                    event_type: row.get(1)?,
+                    action: row.get(2)?,
+                    subject: row.get(3)?,
+                    details: row.get(4)?,
+                    source_ip: row.get(5)?,
+                    user: row.get(6)?,
+                    success: row.get(7)?,
+                    created_at: row.get(8)?,
+                })
+            }).map_err(|e| e.to_string())?
+        }
+        (None, Some(end)) => {
+            let sql = "SELECT id, event_type, action, subject, details, source_ip, user, success, created_at
+                       FROM audit_logs WHERE created_at <= ?1 ORDER BY created_at";
+            state.db.query_map(sql, &[end as &dyn rusqlite::ToSql], |row| {
+                Ok(AuditLogResponse {
+                    id: row.get(0)?,
+                    event_type: row.get(1)?,
+                    action: row.get(2)?,
+                    subject: row.get(3)?,
+                    details: row.get(4)?,
+                    source_ip: row.get(5)?,
+                    user: row.get(6)?,
+                    success: row.get(7)?,
+                    created_at: row.get(8)?,
+                })
+            }).map_err(|e| e.to_string())?
+        }
         (None, None) => {
-            "SELECT id, event_type, action, subject, details, source_ip, user, success, created_at
-             FROM audit_logs ORDER BY created_at".to_string()
+            let sql = "SELECT id, event_type, action, subject, details, source_ip, user, success, created_at
+                       FROM audit_logs ORDER BY created_at";
+            state.db.query_map(sql, &[], |row| {
+                Ok(AuditLogResponse {
+                    id: row.get(0)?,
+                    event_type: row.get(1)?,
+                    action: row.get(2)?,
+                    subject: row.get(3)?,
+                    details: row.get(4)?,
+                    source_ip: row.get(5)?,
+                    user: row.get(6)?,
+                    success: row.get(7)?,
+                    created_at: row.get(8)?,
+                })
+            }).map_err(|e| e.to_string())?
         }
     };
     
-    let logs: Vec<AuditLogResponse> = state.db.query_map(
-        &sql,
-        &[],
-        |row| {
-            Ok(AuditLogResponse {
-                id: row.get(0)?,
-                event_type: row.get(1)?,
-                action: row.get(2)?,
-                subject: row.get(3)?,
-                details: row.get(4)?,
-                source_ip: row.get(5)?,
-                user: row.get(6)?,
-                success: row.get(7)?,
-                created_at: row.get(8)?,
-            })
-        },
-    ).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string_pretty(&logs).map_err(|e| e.to_string())?;
     
-    serde_json::to_string_pretty(&logs).map_err(|e| e.to_string())
+    // Write to a timestamped file in the system temp directory
+    let timestamp = chrono::Utc::now().format("%Y%m%d-%H%M%S");
+    let export_path = std::env::temp_dir().join(format!("zerotrust-audit-{}.json", timestamp));
+    std::fs::write(&export_path, &json).map_err(|e| format!("Failed to write export file: {}", e))?;
+    
+    Ok(export_path.to_string_lossy().to_string())
 }

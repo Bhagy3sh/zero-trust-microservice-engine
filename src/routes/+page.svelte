@@ -116,8 +116,12 @@
 	// Per-service expand state
 	let expandedServiceId: string | null = null;
 
+	// JWT-SVID issuance
+	let jwtSvidTokens: Record<string, string> = {};
+	let isIssuingJwt: string | null = null;
+
 	// Policy evaluator
-	let policyEvalForm = { source_spiffe_id: '', dest_spiffe_id: '', source_ip: '', dest_port: 0, trust_score: 0.8 };
+	let policyEvalForm = { source_spiffe_id: '', source_service_name: '', dest_spiffe_id: '', dest_service_name: '', source_ip: '', dest_port: 0, trust_score: 0.8 };
 	let policyEvalResult: { action: string; matched_policy_name?: string; deny_reason?: string; evaluation_time_us: number } | null = null;
 	let isEvaluatingPolicy = false;
 
@@ -393,13 +397,28 @@
 		}
 	}
 
+	async function doIssueJwtSvid(serviceId: string) {
+		isIssuingJwt = serviceId;
+		try {
+			const token = await identity.issueJwtSvid(serviceId, ['zerotrust.local']);
+			jwtSvidTokens = { ...jwtSvidTokens, [serviceId]: token };
+			actionMessage = 'JWT-SVID issued successfully.';
+		} catch (error) {
+			errorMessage = error instanceof Error ? error.message : 'Failed to issue JWT-SVID';
+		} finally {
+			isIssuingJwt = null;
+		}
+	}
+
 	async function doEvaluatePolicy() {
 		isEvaluatingPolicy = true;
 		policyEvalResult = null;
 		try {
 			policyEvalResult = await policy.evaluatePolicy({
 				source_spiffe_id: policyEvalForm.source_spiffe_id || undefined,
+				source_service_name: policyEvalForm.source_service_name || undefined,
 				dest_spiffe_id: policyEvalForm.dest_spiffe_id || undefined,
+				dest_service_name: policyEvalForm.dest_service_name || undefined,
 				source_ip: policyEvalForm.source_ip || undefined,
 				dest_port: policyEvalForm.dest_port || undefined,
 				trust_score: policyEvalForm.trust_score
@@ -415,14 +434,16 @@
 		if (!createPolicyForm.name.trim()) { errorMessage = 'Policy name is required.'; return; }
 		isCreatingPolicy = true;
 		try {
+			// Rust PolicyCondition uses internally-tagged serde: { type: "risk_score", ... }
+			// Operator enum uses snake_case: "less_than" not "LessThan"
 			const condition = createPolicyForm.condition_type === 'trust_score'
-				? { RiskScore: { operator: 'LessThan', threshold: createPolicyForm.threshold } }
-				: [];
+				? { type: 'risk_score', operator: 'less_than', threshold: Number(createPolicyForm.threshold) }
+				: null;
 			await policy.createPolicy({
 				name: createPolicyForm.name.trim(),
 				priority: Number(createPolicyForm.priority),
 				action: createPolicyForm.action,
-				conditions: Array.isArray(condition) ? condition : [condition]
+				conditions: condition ? [condition] : []
 			});
 			actionMessage = `Policy "${createPolicyForm.name}" created.`;
 			createPolicyForm = { name: '', priority: 10, action: 'Allow', condition_type: 'trust_score', threshold: 0.5 };
@@ -993,6 +1014,18 @@
 														{/if}
 													</div>
 												</div>
+												<div class="mt-4 border-t border-slate-700 pt-4">
+													<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">JWT-SVID</p>
+													<button class="btn btn-primary text-xs" on:click|stopPropagation={() => doIssueJwtSvid(service.id)} disabled={isIssuingJwt === service.id}>
+														{isIssuingJwt === service.id ? 'Issuing...' : 'Issue JWT-SVID'}
+													</button>
+													{#if jwtSvidTokens[service.id]}
+														<div class="mt-3 rounded-lg bg-slate-900 p-3">
+															<p class="mb-1 text-xs text-slate-400">Token (JWT-SVID):</p>
+															<p class="break-all font-mono text-xs text-green-300">{jwtSvidTokens[service.id]}</p>
+														</div>
+													{/if}
+												</div>
 											</td>
 										</tr>
 									{/if}
@@ -1081,6 +1114,16 @@
 				</div>
 				<p class="mb-4 text-sm text-slate-400">Test a request against all active policies. Results come from the real policy engine.</p>
 				<form class="space-y-3" on:submit|preventDefault={doEvaluatePolicy}>
+					<div class="grid grid-cols-2 gap-3">
+						<div>
+							<label class="mb-1 block text-xs text-slate-400" for="eval-src-name">Source Service Name</label>
+							<input id="eval-src-name" class="input" bind:value={policyEvalForm.source_service_name} placeholder="API Gateway" />
+						</div>
+						<div>
+							<label class="mb-1 block text-xs text-slate-400" for="eval-dst-name">Dest Service Name</label>
+							<input id="eval-dst-name" class="input" bind:value={policyEvalForm.dest_service_name} placeholder="Auth Service" />
+						</div>
+					</div>
 					<div class="grid grid-cols-2 gap-3">
 						<div>
 							<label class="mb-1 block text-xs text-slate-400" for="eval-src">Source SPIFFE ID</label>

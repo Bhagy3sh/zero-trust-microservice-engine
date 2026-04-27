@@ -36,8 +36,10 @@ pub struct CreatePolicyRequest {
 #[derive(Debug, Deserialize)]
 pub struct EvaluateRequest {
     pub source_spiffe_id: Option<String>,
+    pub source_service_name: Option<String>,
     pub source_ip: Option<String>,
     pub dest_spiffe_id: Option<String>,
+    pub dest_service_name: Option<String>,
     pub dest_port: Option<u16>,
     pub method: Option<String>,
     pub trust_score: Option<f64>,
@@ -237,19 +239,49 @@ pub async fn get_policy(policy_id: String) -> Result<PolicyResponse, String> {
         .ok_or_else(|| format!("Policy not found: {}", policy_id))
 }
 
+/// Look up a service name: use the provided name if given, else query DB by SPIFFE ID.
+fn resolve_service_name(
+    explicit: Option<String>,
+    spiffe_id: Option<&str>,
+    db: &zerotrust_mesh_lib::storage::Database,
+) -> Option<String> {
+    if explicit.is_some() {
+        return explicit;
+    }
+    let spiffe_id = spiffe_id?;
+    let rows: Result<Vec<String>, _> = db.query_map(
+        "SELECT name FROM services WHERE spiffe_id = ?1 LIMIT 1",
+        &[&spiffe_id as &dyn rusqlite::ToSql],
+        |row| row.get::<_, String>(0),
+    );
+    rows.ok().and_then(|mut v| v.pop())
+}
+
 /// Evaluate a request against policies (B2.1)
 #[command]
 pub async fn evaluate_policy(request: EvaluateRequest) -> Result<EvaluationResponse, String> {
     let state = get_app_state().ok_or("Application not initialized")?;
     
     let mut context = zerotrust_mesh_lib::policy::RequestContext::default();
-    context.source_spiffe_id = request.source_spiffe_id;
+    context.source_spiffe_id = request.source_spiffe_id.clone();
     context.source_ip = request.source_ip.and_then(|s| s.parse().ok());
-    context.dest_spiffe_id = request.dest_spiffe_id;
+    context.dest_spiffe_id = request.dest_spiffe_id.clone();
     context.dest_port = request.dest_port;
     context.method = request.method;
     context.trust_score = request.trust_score;
-    
+
+    // Use explicitly-provided service names first, then fall back to SPIFFE ID DB lookup
+    context.source_service_name = resolve_service_name(
+        request.source_service_name,
+        request.source_spiffe_id.as_deref(),
+        &*state.db,
+    );
+    context.dest_service_name = resolve_service_name(
+        request.dest_service_name,
+        request.dest_spiffe_id.as_deref(),
+        &*state.db,
+    );
+
     let engine = state.policy_engine.read();
     let result = engine.evaluate(&context);
     

@@ -746,6 +746,13 @@ impl PolicyEngine {
         
         if let Some(policy) = self.policies.iter_mut().find(|p| p.id == policy_id) {
             policy.enabled = enabled;
+            if !enabled {
+                // Remove disabled policy from evaluation list to avoid matching
+                self.policies.retain(|p| p.id != policy_id || p.enabled);
+            }
+        } else if enabled {
+            // Policy was not in memory (it was disabled at startup); reload all enabled policies
+            self.load_policies()?;
         }
         
         self.cache.clear();
